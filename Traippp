@@ -1,0 +1,163 @@
+--// Info
+print("TuấnAnh Roblox On Top")
+print("Welcome to Tuấn Anh Roblox Community")
+print("https://www.facebook.com/tuanangg10")
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+local FruitRarity = {
+    Mythical = {"Dragon", "Leopard", "Kitsune"},
+    Legendary = {"Venom", "Control", "Spirit", "Dough", "Shadow", "Rumble", "Blizzard", "Gravity"},
+    Rare = {"Portal", "Paw", "Magma", "Light", "Dark", "Ice", "Flame", "Gas", "Yeti"},
+}
+
+local function getFruitRarity(fruitName)
+    for rarity, fruits in pairs(FruitRarity) do
+        for _, name in pairs(fruits) do
+            if string.find(fruitName:lower(), name:lower()) then
+                return rarity
+            end
+        end
+    end
+    return "Common"
+end
+
+local function notify(title, text, duration)
+    game.StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = duration or 5
+    })
+end
+
+notify("Script", "Auto Nhặt Trái + Lưu + Hop Server Đã Bật!", 5)
+
+local function tweenToPosition(position)
+    local rootPart = LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+    local tween = TweenService:Create(rootPart, TweenInfo.new(2, Enum.EasingStyle.Linear), {CFrame = CFrame.new(position)})
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+local function findFruit()
+    local fruitFound = nil
+    local startTime = tick()
+
+    while tick() - startTime < 5 do
+        for _, obj in ipairs(workspace:GetChildren()) do
+            if obj:IsA("Tool") and string.find(obj.Name:lower(), "fruit") then
+                fruitFound = obj
+                break
+            end
+        end
+        if fruitFound then return fruitFound end
+        wait(0.5)
+    end
+
+    return nil
+end
+
+local function openInventory()
+    VirtualInputManager:SendKeyEvent(true, "M", false, game)
+    wait(1)
+    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, LocalPlayer.PlayerGui.Main.Menu.InventoryButton, 0)
+    wait(1)
+end
+
+local function isFruitInStorage(fruitName)
+    openInventory()
+
+    for _, item in pairs(LocalPlayer.PlayerGui.Main.Inventory.Container.Storage:GetChildren()) do
+        if item:IsA("ImageButton") and item:FindFirstChild("ItemName") then
+            if string.find(item.ItemName.Text:lower(), fruitName:lower()) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function storeFruit()
+    openInventory()
+
+    for _, item in pairs(LocalPlayer.PlayerGui.Main.Inventory.Container.Storage:GetChildren()) do
+        if item:IsA("ImageButton") and item:FindFirstChild("ItemName") and string.find(item.ItemName.Text:lower(), "fruit") then
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, item, 0)
+            wait(1)
+            notify("Đã Lưu Trái!", "Trái đã được lưu vào kho đồ.", 5)
+            return true
+        end
+    end
+
+    notify("Lỗi!", "Không tìm thấy trái trong kho!", 5)
+    return false
+end
+
+local function hopServer()
+    notify("Hop Server", "Đang tìm server mới...", 5)
+
+    local servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100")).data
+
+    for _, server in pairs(servers) do
+        if server.playing < server.maxPlayers then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+            return
+        end
+    end
+
+    notify("Lỗi!", "Không tìm được server phù hợp.", 5)
+end
+
+--// Bắt đầu kiểm tra và xử lý
+local fruit = findFruit()
+
+if fruit then
+    notify("Tìm Thấy Trái!", "Đang bay đến nhặt trái: "..fruit.Name, 5)
+
+    tweenToPosition(fruit.Handle.Position)
+    wait(0.5)
+
+    LocalPlayer.Character:WaitForChild("Humanoid"):EquipTool(fruit)
+    notify("Đã Nhặt Thành Công!", "Trái: " .. fruit.Name, 5)
+
+    local rarity = getFruitRarity(fruit.Name)
+
+    if rarity == "Mythical" or rarity == "Legendary" then
+        notify("Trái Hiếm - "..rarity, "Kiểm tra xem đã có trong kho chưa...", 5)
+
+        if isFruitInStorage(fruit.Name) then
+            notify("Đã Có Trong Kho!", "Giữ nguyên trái này và không đổi server!", 10)
+            return
+        else
+            notify("Chưa Có Trái Này!", "Tự động lưu vào kho và hop server!", 5)
+            if storeFruit() then
+                wait(2)
+                hopServer()
+            else
+                notify("Lưu Thất Bại!", "Thử lại ở server mới.", 5)
+                wait(2)
+                hopServer()
+            end
+        end
+    else
+        -- Trái thường hoặc Rare
+        notify("Trái "..rarity, "Tự động lưu vào kho và hop server!", 5)
+        if storeFruit() then
+            wait(2)
+            hopServer()
+        else
+            notify("Lưu Thất Bại!", "Thử lại ở server mới.", 5)
+            wait(2)
+            hopServer()
+        end
+    end
+else
+    notify("Không Có Trái!", "Tự động hop server sau 5 giây.", 5)
+    wait(5)
+    hopServer()
+end
